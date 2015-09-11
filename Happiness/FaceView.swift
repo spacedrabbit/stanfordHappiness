@@ -8,13 +8,20 @@
 
 import UIKit
 
+protocol FaceViewDataSource: class {
+    func smilinessForFaceView(sender: FaceView) -> Double?
+}
+
 @IBDesignable // holy shit
 class FaceView: UIView
 {
     // because changing the line width requires redrawing, we can add a property observer to this default
     // value in order to call setNeedsDisplay() whenever the value changes
+    @IBInspectable
     var lineWidth: CGFloat  = 3 { didSet { setNeedsDisplay() } }
+    @IBInspectable
     var color    : UIColor  = UIColor.blueColor() { didSet { setNeedsDisplay() } }
+    @IBInspectable
     var scale: CGFloat = 0.90 { didSet { setNeedsDisplay() } }
     
     var faceCenter: CGPoint {
@@ -73,6 +80,19 @@ class FaceView: UIView
         return path
     }
     
+    // note: we add we here to avoid a retain cycle (view points to VC as its dataSource and the VC points to the 
+    // view since it's in it's view hierarchy. though, this will also receive an error if we do not add the 
+    // :class keyword to our protocol, since weak/strong only pertains to reference types 
+    // (and not value types as structs and enums)
+    weak var dataSource: FaceViewDataSource? // this will be our delegate, is Optional since we may not use it
+    
+    func scale(gesture: UIPinchGestureRecognizer){
+        if gesture.state == .Changed {
+            scale *= gesture.scale
+            gesture.scale = 1 // effectively resets the scale value after each subsequent pinch
+        }
+    }
+    
     override func drawRect(rect: CGRect)
     {
         let facePath = UIBezierPath(arcCenter: faceCenter, radius: faceRadius, startAngle: 0.0, endAngle: CGFloat(2*M_PI), clockwise: true)
@@ -83,7 +103,7 @@ class FaceView: UIView
         bezierPathForEye(.Left).stroke()
         bezierPathForEye(.Right).stroke()
         
-        let smiliness = 0.75
+        let smiliness = dataSource?.smilinessForFaceView(self) ?? 0.0
         let smilePath = bezierPathForSmile(smiliness)
         smilePath.stroke()
         
